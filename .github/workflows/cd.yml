@@ -129,27 +129,30 @@ jobs:
           echo "YC_BIN=$YC_BIN" >> "$GITHUB_ENV"
           "$YC_BIN" --version
 
-      - name: Configure yc auth
+      - name: Verify SA key file
         run: |
           set -e
-          if ! "$YC_BIN" config profile list 2>/dev/null | grep -q '^ci-profile'; then
-            "$YC_BIN" config profile create ci-profile
-          else
-            "$YC_BIN" config profile activate ci-profile
+          KEY_PATH="$(pwd)/key.json"
+          if [ ! -s "$KEY_PATH" ]; then
+            echo "key.json is missing or empty"
+            exit 1
           fi
-          "$YC_BIN" config set service-account-key key.json
-          "$YC_BIN" config set cloud-id ${{ secrets.YC_CLOUD_ID }}
-          "$YC_BIN" config set folder-id ${{ secrets.YC_FOLDER_ID }}
-          "$YC_BIN" config list
+          echo "KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+          echo "key.json present: $(wc -c < "$KEY_PATH") bytes"
 
       - name: Deploy new revision to serverless container
         run: |
-          "$YC_BIN" serverless container revision deploy \
-            --container-id ${{ secrets.YC_SERVERLESS_CONTAINER_ID }} \
-            --image "$IMAGE_URI" \
-            --cores 1 \
-            --memory 1GB \
-            --execution-timeout 60s \
-            --environment PORT=8080 \
-            --environment APP_ENV=prod \
-            --environment YC_BUCKET_NAME=${{ secrets.YC_BUCKET_NAME }}
+          set -e
+          "$YC_BIN" \
+            --service-account-key "$KEY_PATH" \
+            --cloud-id "${{ secrets.YC_CLOUD_ID }}" \
+            --folder-id "${{ secrets.YC_FOLDER_ID }}" \
+            serverless container revision deploy \
+              --container-id ${{ secrets.YC_SERVERLESS_CONTAINER_ID }} \
+              --image "$IMAGE_URI" \
+              --cores 1 \
+              --memory 1GB \
+              --execution-timeout 60s \
+              --environment PORT=8080 \
+              --environment APP_ENV=prod \
+              --environment YC_BUCKET_NAME=${{ secrets.YC_BUCKET_NAME }}
