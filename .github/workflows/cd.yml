@@ -86,13 +86,18 @@ jobs:
 
       - name: Install yc CLI
         run: |
-          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i /usr/local/bin
+          set -e
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i /usr/local/bin || true
           source ~/.bashrc || true
           YC_BIN="$(command -v yc || true)"
           if [ -z "$YC_BIN" ]; then
-            for p in /home/runner/yandex-cloud/bin/yc /home/runner/.local/bin/yc /usr/local/bin/yc; do
-              if [ -x "$p" ]; then YC_BIN="$p"; break; fi
-            done
+            YC_BIN="$(find /home/runner -maxdepth 6 -type f -name yc 2>/dev/null | head -n 1 || true)"
+          fi
+          if [ -z "$YC_BIN" ]; then
+            mkdir -p "$HOME/ycbin"
+            curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/release/1.6.0/linux/amd64/yc -o "$HOME/ycbin/yc"
+            chmod +x "$HOME/ycbin/yc"
+            YC_BIN="$HOME/ycbin/yc"
           fi
           if [ -z "$YC_BIN" ]; then
             echo "yc binary not found after installation"
