@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+.idea/
+.vscode/
+.DS_Store
+
+# Large/local data artifacts
+data/raw/
+data/interim/
+data/processed/
+data/source/
+reports/
+
+# Keep directory structure and tiny examples only
+!data/source/.gitkeep
+!reports/.gitkeep
+
+# Optional local logs and caches
+*.log
+*.tmp
+*.cache

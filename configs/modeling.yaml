@@ -1,0 +1,24 @@
+paths:
+  processed_dir: data/processed
+  reports_dir: reports
+
+modeling:
+  target_col: target_class
+  # three_class | binary_change (доп.: auxiliary Ridge по delta_bp при report_delta_regression)
+  target_mode: three_class
+  # По умолчанию лучшая модель по основной метрике диплома: macro-F1 на валидации.
+  selection_metric: macro_f1
+  # macro_f1 | weighted_f1 | combo_macro_acc (0.5 macro_F1 + 0.5 accuracy)
+  report_delta_regression: true
+  random_seed: 42
+  # valid overlaps easing/tightening cycles (вкл. down); test = последние две+ года.
+  test_start_date: "2024-01-01"
+  valid_start_date: "2022-05-01"
+  save_dir: data/processed/models
+
+features:
+  drop_cols:
+    - sample_id
+    - meeting_date
+    - target_class
+    - target_delta_bp

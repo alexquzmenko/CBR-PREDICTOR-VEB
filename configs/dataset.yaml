@@ -1,0 +1,41 @@
+paths:
+  raw_dir: data/raw
+  interim_dir: data/interim
+  processed_dir: data/processed
+  reports_dir: reports
+
+dataset:
+  start_date: "2015-01-01"
+  end_date: "2026-12-31"
+  min_text_len: 120
+  snippet_min_len: 120
+  full_text_min_len: 500
+  include_snippet: false
+  full_text_weight: 1.0
+  snippet_weight: 0.0
+  window_days: 14
+  random_seed: 42
+
+# Многоязычные эмбеддинги новостей (усреднение по окну в features). Отключите для быстрого прогона.
+embeddings:
+  enabled: true
+  model_id: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+  batch_size: 16
+
+nlp:
+  # RuBERT (sberbank-ai/ruBert-base) fine-tuned on RCC-MSU/collection3 — strong Russian news NER (HF Transformers, no DeepPavlov stack).
+  ner_model_id: local-disabled-model
+  # ~1200 chars keeps most chunks under 512 BPE tokens for ruBERT.
+  ner_chunk_chars: 1200
+  ner_chunk_stride: 300
+  ner_batch_size: 4
+  # -1 = CPU; 0 = первая CUDA GPU.
+  ner_device: -1
+  max_entities_for_relations: 36
+
+sources:
+  use_demo_generator: false
+  demo_news_count: 4000
+  news_csv: data/source/news_tiered.csv
+  macro_csv: data/source/macro.csv
+  rates_csv: data/source/rates_from_v2.csv

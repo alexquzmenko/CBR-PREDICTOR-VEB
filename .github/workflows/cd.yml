@@ -1,0 +1,59 @@
+name: CD to Yandex Serverless Containers
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: cbr-predictor
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Yandex Container Registry
+        run: |
+          echo '${{ secrets.YC_SA_KEY_JSON }}' > key.json
+          cat key.json | docker login --username json_key --password-stdin cr.yandex
+
+      - name: Build image
+        run: |
+          IMAGE_URI=cr.yandex/${{ secrets.YC_REGISTRY_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker build -t "$IMAGE_URI" .
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+
+      - name: Push image
+        run: |
+          docker push "$IMAGE_URI"
+          docker tag "$IMAGE_URI" cr.yandex/${{ secrets.YC_REGISTRY_ID }}/${{ env.IMAGE_NAME }}:latest
+          docker push cr.yandex/${{ secrets.YC_REGISTRY_ID }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Install yc CLI
+        run: |
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i /usr/local/bin
+          yc --version
+
+      - name: Configure yc auth
+        run: |
+          echo '${{ secrets.YC_SA_KEY_JSON }}' > key.json
+          yc config profile create ci-profile || true
+          yc config set service-account-key key.json
+          yc config set cloud-id ${{ secrets.YC_CLOUD_ID }}
+          yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
+
+      - name: Deploy new revision to serverless container
+        run: |
+          yc serverless container revision deploy \
+            --container-id ${{ secrets.YC_SERVERLESS_CONTAINER_ID }} \
+            --image "$IMAGE_URI" \
+            --cores 1 \
+            --memory 1GB \
+            --execution-timeout 60s \
+            --environment PORT=8080 \
+            --environment APP_ENV=prod \
+            --environment YC_BUCKET_NAME=${{ secrets.YC_BUCKET_NAME }}
