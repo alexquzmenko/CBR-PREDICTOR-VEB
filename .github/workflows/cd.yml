@@ -87,22 +87,45 @@ jobs:
       - name: Install yc CLI
         run: |
           set -e
-          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i /usr/local/bin || true
-          source ~/.bashrc || true
-          YC_BIN="$(command -v yc || true)"
+
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh -o /tmp/yc-install.sh
+
+          mkdir -p "$HOME/yandex-cloud"
+          bash /tmp/yc-install.sh -i "$HOME/yandex-cloud" -n || true
+
+          source "$HOME/.bashrc" || true
+
+          YC_BIN=""
+          for p in \
+            "$HOME/yandex-cloud/bin/yc" \
+            "/home/runner/yandex-cloud/bin/yc" \
+            "/usr/local/bin/yc" \
+            "/usr/bin/yc" \
+            "$HOME/.local/bin/yc"; do
+            if [ -x "$p" ]; then YC_BIN="$p"; break; fi
+          done
+
           if [ -z "$YC_BIN" ]; then
-            YC_BIN="$(find /home/runner -maxdepth 6 -type f -name yc 2>/dev/null | head -n 1 || true)"
+            YC_BIN="$(command -v yc 2>/dev/null || true)"
           fi
+
           if [ -z "$YC_BIN" ]; then
-            mkdir -p "$HOME/ycbin"
-            curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/release/1.6.0/linux/amd64/yc -o "$HOME/ycbin/yc"
-            chmod +x "$HOME/ycbin/yc"
-            YC_BIN="$HOME/ycbin/yc"
+            FOUND="$(find / -maxdepth 8 -type f -name yc 2>/dev/null | head -n 1 || true)"
+            if [ -n "$FOUND" ] && [ -x "$FOUND" ]; then
+              YC_BIN="$FOUND"
+            fi
           fi
+
           if [ -z "$YC_BIN" ]; then
-            echo "yc binary not found after installation"
+            echo "Failed to install or locate yc CLI."
+            echo "Diagnostics:"
+            ls -la "$HOME/yandex-cloud/bin" 2>/dev/null || true
+            ls -la /usr/local/bin/yc 2>/dev/null || true
+            ls -la "$HOME/.local/bin/yc" 2>/dev/null || true
             exit 1
           fi
+
+          echo "Found yc at: $YC_BIN"
           echo "YC_BIN=$YC_BIN" >> "$GITHUB_ENV"
           "$YC_BIN" --version
 
