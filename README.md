@@ -53,3 +53,14 @@ python scripts/run_infer.py --config configs/modeling.yaml --meeting-date 2025-1
 ## Примечания
 - Это запускаемая baseline-реализация для развития дипломного проекта.
 - Rule-based NER/RE можно заменить на трансформерные пайплайны, сохранив совместимость форматов ввода/вывода.
+
+## API (для Serverless Container)
+- `GET /health` — проверка доступности сервиса.
+- `POST /predict` — инференс по дате заседания (требует модельные артефакты в `data/processed/models`).
+
+Пример запроса:
+```json
+{
+  "meeting_date": "2025-12-20"
+}
+```
