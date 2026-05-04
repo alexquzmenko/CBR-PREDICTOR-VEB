@@ -167,7 +167,7 @@ jobs:
 
           deploy_url = (
               "https://serverless-containers.api.cloud.yandex.net/containers/v1/"
-              f"containers/{CONTAINER_ID}:deployRevision"
+              "revisions:deploy"
           )
 
           deploy_req = urllib.request.Request(
