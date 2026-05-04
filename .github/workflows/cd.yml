@@ -185,19 +185,26 @@ jobs:
           print("IAM token issued (length=" + str(len(token)) + ")")
           PY
 
+      - name: Diagnose yc deploy flags
+        run: |
+          set +e
+          "$YC_BIN" --version
+          echo "=== yc serverless container revision deploy --help ==="
+          "$YC_BIN" serverless container revision deploy --help
+          echo "=== /help ==="
+
       - name: Deploy new revision to serverless container
         run: |
           set -e
-          "$YC_BIN" \
-            --token "$IAM_TOKEN" \
-            --cloud-id "${{ secrets.YC_CLOUD_ID }}" \
-            --folder-id "${{ secrets.YC_FOLDER_ID }}" \
-            serverless container revision deploy \
-              --container-id ${{ secrets.YC_SERVERLESS_CONTAINER_ID }} \
-              --image "$IMAGE_URI" \
-              --cores 1 \
-              --memory 1GB \
-              --execution-timeout 60s \
-              --environment PORT=8080 \
-              --environment APP_ENV=prod \
-              --environment YC_BUCKET_NAME=${{ secrets.YC_BUCKET_NAME }}
+          "$YC_BIN" serverless container revision deploy \
+            --token="$IAM_TOKEN" \
+            --cloud-id="${{ secrets.YC_CLOUD_ID }}" \
+            --folder-id="${{ secrets.YC_FOLDER_ID }}" \
+            --container-id="${{ secrets.YC_SERVERLESS_CONTAINER_ID }}" \
+            --image="$IMAGE_URI" \
+            --cores=1 \
+            --memory=1GB \
+            --execution-timeout=60s \
+            --environment=PORT=8080 \
+            --environment=APP_ENV=prod \
+            --environment=YC_BUCKET_NAME="${{ secrets.YC_BUCKET_NAME }}"
