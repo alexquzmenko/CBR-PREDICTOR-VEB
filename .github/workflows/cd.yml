@@ -8,6 +8,7 @@ on:
 
 env:
   IMAGE_NAME: cbr-predictor
+  DEFAULT_REGISTRY_ID: crp80kqtu9obombh8iv7
 
 jobs:
   deploy:
@@ -64,20 +65,24 @@ jobs:
           PY
 
       - name: Login to Yandex Container Registry
+        env:
+          YC_REGISTRY_ID: ${{ secrets.YC_REGISTRY_ID }}
         run: |
+          REGISTRY_ID="${YC_REGISTRY_ID:-$DEFAULT_REGISTRY_ID}"
+          echo "REGISTRY_ID=$REGISTRY_ID" >> $GITHUB_ENV
           docker login --username json_key --password-stdin cr.yandex < key.json
 
       - name: Build image
         run: |
-          IMAGE_URI=cr.yandex/${{ secrets.YC_REGISTRY_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          IMAGE_URI=cr.yandex/${REGISTRY_ID}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           docker build -t "$IMAGE_URI" .
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
 
       - name: Push image
         run: |
           docker push "$IMAGE_URI"
-          docker tag "$IMAGE_URI" cr.yandex/${{ secrets.YC_REGISTRY_ID }}/${{ env.IMAGE_NAME }}:latest
-          docker push cr.yandex/${{ secrets.YC_REGISTRY_ID }}/${{ env.IMAGE_NAME }}:latest
+          docker tag "$IMAGE_URI" cr.yandex/${REGISTRY_ID}/${{ env.IMAGE_NAME }}:latest
+          docker push cr.yandex/${REGISTRY_ID}/${{ env.IMAGE_NAME }}:latest
 
       - name: Install yc CLI
         run: |
