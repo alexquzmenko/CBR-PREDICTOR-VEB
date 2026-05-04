@@ -87,23 +87,32 @@ jobs:
       - name: Install yc CLI
         run: |
           curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i /usr/local/bin
-          export PATH="/usr/local/bin:$PATH"
-          /usr/local/bin/yc --version
+          source ~/.bashrc || true
+          YC_BIN="$(command -v yc || true)"
+          if [ -z "$YC_BIN" ]; then
+            for p in /home/runner/yandex-cloud/bin/yc /home/runner/.local/bin/yc /usr/local/bin/yc; do
+              if [ -x "$p" ]; then YC_BIN="$p"; break; fi
+            done
+          fi
+          if [ -z "$YC_BIN" ]; then
+            echo "yc binary not found after installation"
+            exit 1
+          fi
+          echo "YC_BIN=$YC_BIN" >> "$GITHUB_ENV"
+          "$YC_BIN" --version
 
       - name: Configure yc auth
         run: |
-          export PATH="/usr/local/bin:$PATH"
-          /usr/local/bin/yc config profile activate default || true
-          /usr/local/bin/yc auth activate-service-account-key --key-file key.json
-          /usr/local/bin/yc config profile create ci-profile || true
-          /usr/local/bin/yc config set service-account-key key.json
-          /usr/local/bin/yc config set cloud-id ${{ secrets.YC_CLOUD_ID }}
-          /usr/local/bin/yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
+          "$YC_BIN" config profile activate default || true
+          "$YC_BIN" auth activate-service-account-key --key-file key.json
+          "$YC_BIN" config profile create ci-profile || true
+          "$YC_BIN" config set service-account-key key.json
+          "$YC_BIN" config set cloud-id ${{ secrets.YC_CLOUD_ID }}
+          "$YC_BIN" config set folder-id ${{ secrets.YC_FOLDER_ID }}
 
       - name: Deploy new revision to serverless container
         run: |
-          export PATH="/usr/local/bin:$PATH"
-          /usr/local/bin/yc serverless container revision deploy \
+          "$YC_BIN" serverless container revision deploy \
             --container-id ${{ secrets.YC_SERVERLESS_CONTAINER_ID }} \
             --image "$IMAGE_URI" \
             --cores 1 \
