@@ -131,12 +131,16 @@ jobs:
 
       - name: Configure yc auth
         run: |
-          "$YC_BIN" config profile activate default || true
-          "$YC_BIN" auth activate-service-account-key --key-file key.json
-          "$YC_BIN" config profile create ci-profile || true
+          set -e
+          if ! "$YC_BIN" config profile list 2>/dev/null | grep -q '^ci-profile'; then
+            "$YC_BIN" config profile create ci-profile
+          else
+            "$YC_BIN" config profile activate ci-profile
+          fi
           "$YC_BIN" config set service-account-key key.json
           "$YC_BIN" config set cloud-id ${{ secrets.YC_CLOUD_ID }}
           "$YC_BIN" config set folder-id ${{ secrets.YC_FOLDER_ID }}
+          "$YC_BIN" config list
 
       - name: Deploy new revision to serverless container
         run: |
