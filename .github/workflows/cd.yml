@@ -16,10 +16,53 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Prepare service account key
+        env:
+          YC_SA_KEY_JSON: ${{ secrets.YC_SA_KEY_JSON }}
+        run: |
+          python - <<'PY'
+          import base64
+          import json
+          import os
+
+          raw = os.environ.get("YC_SA_KEY_JSON", "").strip()
+          if not raw:
+              raise RuntimeError("Secret YC_SA_KEY_JSON is empty.")
+
+          candidates = [raw]
+          try:
+              candidates.append(base64.b64decode(raw).decode("utf-8"))
+          except Exception:
+              pass
+
+          parsed = None
+          for c in candidates:
+              try:
+                  parsed = json.loads(c)
+                  break
+              except Exception:
+                  try:
+                      parsed = json.loads(c.replace("\\n", "\n"))
+                      break
+                  except Exception:
+                      continue
+
+          if not parsed:
+              raise RuntimeError(
+                  "YC_SA_KEY_JSON is not valid JSON key. Paste full JSON key content."
+              )
+          if parsed.get("type") != "authorized_key":
+              raise RuntimeError(
+                  "YC_SA_KEY_JSON must be a service account authorized key JSON."
+              )
+          with open("key.json", "w", encoding="utf-8") as f:
+              json.dump(parsed, f)
+          print("key.json prepared")
+          PY
+
       - name: Login to Yandex Container Registry
         run: |
-          echo '${{ secrets.YC_SA_KEY_JSON }}' > key.json
-          cat key.json | docker login --username json_key --password-stdin cr.yandex
+          docker login --username json_key --password-stdin cr.yandex < key.json
 
       - name: Build image
         run: |
@@ -40,7 +83,8 @@ jobs:
 
       - name: Configure yc auth
         run: |
-          echo '${{ secrets.YC_SA_KEY_JSON }}' > key.json
+          yc config profile activate default || true
+          yc auth activate-service-account-key --key-file key.json
           yc config profile create ci-profile || true
           yc config set service-account-key key.json
           yc config set cloud-id ${{ secrets.YC_CLOUD_ID }}
