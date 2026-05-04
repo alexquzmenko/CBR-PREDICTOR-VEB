@@ -84,51 +84,6 @@ jobs:
           docker tag "$IMAGE_URI" cr.yandex/${REGISTRY_ID}/${{ env.IMAGE_NAME }}:latest
           docker push cr.yandex/${REGISTRY_ID}/${{ env.IMAGE_NAME }}:latest
 
-      - name: Install yc CLI
-        run: |
-          set -e
-
-          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh -o /tmp/yc-install.sh
-
-          mkdir -p "$HOME/yandex-cloud"
-          bash /tmp/yc-install.sh -i "$HOME/yandex-cloud" -n || true
-
-          source "$HOME/.bashrc" || true
-
-          YC_BIN=""
-          for p in \
-            "$HOME/yandex-cloud/bin/yc" \
-            "/home/runner/yandex-cloud/bin/yc" \
-            "/usr/local/bin/yc" \
-            "/usr/bin/yc" \
-            "$HOME/.local/bin/yc"; do
-            if [ -x "$p" ]; then YC_BIN="$p"; break; fi
-          done
-
-          if [ -z "$YC_BIN" ]; then
-            YC_BIN="$(command -v yc 2>/dev/null || true)"
-          fi
-
-          if [ -z "$YC_BIN" ]; then
-            FOUND="$(find / -maxdepth 8 -type f -name yc 2>/dev/null | head -n 1 || true)"
-            if [ -n "$FOUND" ] && [ -x "$FOUND" ]; then
-              YC_BIN="$FOUND"
-            fi
-          fi
-
-          if [ -z "$YC_BIN" ]; then
-            echo "Failed to install or locate yc CLI."
-            echo "Diagnostics:"
-            ls -la "$HOME/yandex-cloud/bin" 2>/dev/null || true
-            ls -la /usr/local/bin/yc 2>/dev/null || true
-            ls -la "$HOME/.local/bin/yc" 2>/dev/null || true
-            exit 1
-          fi
-
-          echo "Found yc at: $YC_BIN"
-          echo "YC_BIN=$YC_BIN" >> "$GITHUB_ENV"
-          "$YC_BIN" --version
-
       - name: Verify SA key file
         run: |
           set -e
@@ -140,9 +95,12 @@ jobs:
           echo "KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
           echo "key.json present: $(wc -c < "$KEY_PATH") bytes"
 
-      - name: Issue IAM token
+      - name: Deploy revision via Yandex Cloud REST API
         env:
           KEY_PATH: ${{ env.KEY_PATH }}
+          IMAGE_URI: ${{ env.IMAGE_URI }}
+          YC_SERVERLESS_CONTAINER_ID: ${{ secrets.YC_SERVERLESS_CONTAINER_ID }}
+          YC_BUCKET_NAME: ${{ secrets.YC_BUCKET_NAME }}
         run: |
           set -e
           python -m pip install --quiet --upgrade pip
@@ -150,61 +108,122 @@ jobs:
           python - <<'PY'
           import json
           import os
+          import sys
           import time
+          import urllib.error
           import urllib.request
 
           import jwt as pyjwt
 
-          with open(os.environ["KEY_PATH"], "r", encoding="utf-8") as f:
+          KEY_PATH = os.environ["KEY_PATH"]
+          IMAGE_URI = os.environ["IMAGE_URI"]
+          CONTAINER_ID = os.environ["YC_SERVERLESS_CONTAINER_ID"]
+          BUCKET_NAME = os.environ.get("YC_BUCKET_NAME", "")
+
+          with open(KEY_PATH, "r", encoding="utf-8") as f:
               key = json.load(f)
 
           now = int(time.time())
-          payload = {
+          jwt_payload = {
               "iss": key["service_account_id"],
               "aud": "https://iam.api.cloud.yandex.net/iam/v1/tokens",
               "iat": now,
               "exp": now + 360,
           }
-          encoded = pyjwt.encode(
-              payload,
+          jwt_encoded = pyjwt.encode(
+              jwt_payload,
               key["private_key"],
               algorithm="PS256",
               headers={"kid": key["id"]},
           )
+
           req = urllib.request.Request(
               "https://iam.api.cloud.yandex.net/iam/v1/tokens",
-              data=json.dumps({"jwt": encoded}).encode("utf-8"),
+              data=json.dumps({"jwt": jwt_encoded}).encode("utf-8"),
               headers={"Content-Type": "application/json"},
           )
           with urllib.request.urlopen(req, timeout=20) as resp:
-              token = json.loads(resp.read().decode("utf-8"))["iamToken"]
+              iam_token = json.loads(resp.read().decode("utf-8"))["iamToken"]
 
-          print("::add-mask::" + token)
-          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as fenv:
-              fenv.write("IAM_TOKEN=" + token + "\n")
-          print("IAM token issued (length=" + str(len(token)) + ")")
+          print("::add-mask::" + iam_token)
+          print(f"IAM token issued (length={len(iam_token)})")
+
+          deploy_body = {
+              "containerId": CONTAINER_ID,
+              "resources": {
+                  "memory": str(1 * 1024 * 1024 * 1024),
+                  "cores": "1",
+              },
+              "executionTimeout": "60s",
+              "imageSpec": {
+                  "imageUrl": IMAGE_URI,
+                  "environment": {
+                      "PORT": "8080",
+                      "APP_ENV": "prod",
+                      "YC_BUCKET_NAME": BUCKET_NAME,
+                  },
+              },
+          }
+
+          deploy_url = (
+              "https://serverless-containers.api.cloud.yandex.net/containers/v1/"
+              f"containers/{CONTAINER_ID}:deployRevision"
+          )
+
+          deploy_req = urllib.request.Request(
+              deploy_url,
+              data=json.dumps(deploy_body).encode("utf-8"),
+              headers={
+                  "Authorization": "Bearer " + iam_token,
+                  "Content-Type": "application/json",
+              },
+              method="POST",
+          )
+
+          try:
+              with urllib.request.urlopen(deploy_req, timeout=60) as resp:
+                  op = json.loads(resp.read().decode("utf-8"))
+          except urllib.error.HTTPError as exc:
+              detail = exc.read().decode("utf-8", errors="replace")
+              raise SystemExit(
+                  f"deployRevision failed: HTTP {exc.code}\n{detail}"
+              )
+
+          op_id = op.get("id")
+          if not op_id:
+              raise SystemExit(
+                  "Unexpected deployRevision response (no operation id):\n"
+                  + json.dumps(op, indent=2, ensure_ascii=False)
+              )
+          print(f"Operation started: {op_id}")
+
+          op_url = f"https://operation.api.cloud.yandex.net/operations/{op_id}"
+          deadline = time.time() + 8 * 60
+          while True:
+              if time.time() > deadline:
+                  raise SystemExit("Timeout waiting for deploy operation to finish")
+              poll_req = urllib.request.Request(
+                  op_url,
+                  headers={"Authorization": "Bearer " + iam_token},
+              )
+              try:
+                  with urllib.request.urlopen(poll_req, timeout=20) as resp:
+                      status = json.loads(resp.read().decode("utf-8"))
+              except urllib.error.HTTPError as exc:
+                  detail = exc.read().decode("utf-8", errors="replace")
+                  raise SystemExit(
+                      f"Operation poll failed: HTTP {exc.code}\n{detail}"
+                  )
+
+              if status.get("done"):
+                  if status.get("error"):
+                      raise SystemExit(
+                          "Deploy operation finished with error:\n"
+                          + json.dumps(status["error"], indent=2, ensure_ascii=False)
+                      )
+                  rev = status.get("response", {})
+                  rev_id = rev.get("id") or rev.get("revisionId") or "<unknown>"
+                  print(f"Deploy succeeded. Revision id: {rev_id}")
+                  break
+              time.sleep(5)
           PY
-
-      - name: Diagnose yc deploy flags
-        run: |
-          set +e
-          "$YC_BIN" --version
-          echo "=== yc serverless container revision deploy --help ==="
-          "$YC_BIN" serverless container revision deploy --help
-          echo "=== /help ==="
-
-      - name: Deploy new revision to serverless container
-        run: |
-          set -e
-          "$YC_BIN" serverless container revision deploy \
-            --token="$IAM_TOKEN" \
-            --cloud-id="${{ secrets.YC_CLOUD_ID }}" \
-            --folder-id="${{ secrets.YC_FOLDER_ID }}" \
-            --container-id="${{ secrets.YC_SERVERLESS_CONTAINER_ID }}" \
-            --image="$IMAGE_URI" \
-            --cores=1 \
-            --memory=1GB \
-            --execution-timeout=60s \
-            --environment=PORT=8080 \
-            --environment=APP_ENV=prod \
-            --environment=YC_BUCKET_NAME="${{ secrets.YC_BUCKET_NAME }}"
