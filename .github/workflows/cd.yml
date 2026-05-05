@@ -196,7 +196,6 @@ jobs:
               "imageSpec": {
                   "imageUrl": IMAGE_URI,
                   "environment": {
-                      "PORT": "8080",
                       "APP_ENV": "prod",
                       "YC_BUCKET_NAME": BUCKET_NAME,
                   },
