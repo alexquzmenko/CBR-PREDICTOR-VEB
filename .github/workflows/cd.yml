@@ -117,8 +117,16 @@ jobs:
 
           KEY_PATH = os.environ["KEY_PATH"]
           IMAGE_URI = os.environ["IMAGE_URI"]
-          CONTAINER_ID = os.environ["YC_SERVERLESS_CONTAINER_ID"]
+          CONTAINER_ID = (os.environ.get("YC_SERVERLESS_CONTAINER_ID") or "").strip()
           BUCKET_NAME = os.environ.get("YC_BUCKET_NAME", "")
+
+          if not CONTAINER_ID:
+              raise SystemExit(
+                  "YC_SERVERLESS_CONTAINER_ID is empty. Set GitHub secret "
+                  "YC_SERVERLESS_CONTAINER_ID to the serverless container id."
+              )
+          # Do not log full id in public logs (partial mask).
+          print(f"Container id (masked): {CONTAINER_ID[:4]}*** len={len(CONTAINER_ID)}")
 
           with open(KEY_PATH, "r", encoding="utf-8") as f:
               key = json.load(f)
@@ -148,15 +156,16 @@ jobs:
           print("::add-mask::" + iam_token)
           print(f"IAM token issued (length={len(iam_token)})")
 
+          # REST JSON matches api-ref (camelCase), see revisions:deploy body schema.
           deploy_body = {
-              "container_id": CONTAINER_ID,
+              "containerId": CONTAINER_ID,
               "resources": {
                   "memory": str(1 * 1024 * 1024 * 1024),
                   "cores": "1",
               },
-              "execution_timeout": "60s",
-              "image_spec": {
-                  "image_url": IMAGE_URI,
+              "executionTimeout": "60s",
+              "imageSpec": {
+                  "imageUrl": IMAGE_URI,
                   "environment": {
                       "PORT": "8080",
                       "APP_ENV": "prod",
