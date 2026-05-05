@@ -95,11 +95,38 @@ jobs:
           echo "KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
           echo "key.json present: $(wc -c < "$KEY_PATH") bytes"
 
+      # Secrets are not always visible in env: of the next step on forks / misnamed keys.
+      # Materialize container id into GITHUB_ENV so the deploy script always sees it.
+      - name: Resolve Serverless Container id
+        env:
+          SEC_PRIMARY: ${{ secrets.YC_SERVERLESS_CONTAINER_ID }}
+          SEC_ALT1: ${{ secrets.YC_SERVERLESS_CONTAINER }}
+          SEC_ALT2: ${{ secrets.SERVERLESS_CONTAINER_ID }}
+          SEC_ALT3: ${{ secrets.CONTAINER_ID }}
+        run: |
+          set -e
+          pick="${SEC_PRIMARY:-}"
+          if [ -z "$pick" ]; then pick="${SEC_ALT1:-}"; fi
+          if [ -z "$pick" ]; then pick="${SEC_ALT2:-}"; fi
+          if [ -z "$pick" ]; then pick="${SEC_ALT3:-}"; fi
+          pick="$(echo "$pick" | tr -d '[:space:]')"
+          if [ -z "$pick" ]; then
+            echo "No Serverless Container id found in secrets."
+            echo "In GitHub: Settings → Secrets and variables → Actions → New repository secret"
+            echo "Name:  YC_SERVERLESS_CONTAINER_ID"
+            echo "Value: id контейнера из консоли Yandex Cloud (например bba89gp29g45b9fbutt4)."
+            echo "Also supported alternate secret names: YC_SERVERLESS_CONTAINER, SERVERLESS_CONTAINER_ID, CONTAINER_ID."
+            echo "If this is a fork: secrets are not passed to workflows from the parent repo — add secrets on the fork."
+            exit 1
+          fi
+          echo "YC_SERVERLESS_CONTAINER_ID=$pick" >> "$GITHUB_ENV"
+          echo "Container id resolved (masked): ${pick:0:4}*** len=${#pick}"
+
       - name: Deploy revision via Yandex Cloud REST API
         env:
           KEY_PATH: ${{ env.KEY_PATH }}
           IMAGE_URI: ${{ env.IMAGE_URI }}
-          YC_SERVERLESS_CONTAINER_ID: ${{ secrets.YC_SERVERLESS_CONTAINER_ID }}
+          YC_SERVERLESS_CONTAINER_ID: ${{ env.YC_SERVERLESS_CONTAINER_ID }}
           YC_BUCKET_NAME: ${{ secrets.YC_BUCKET_NAME }}
         run: |
           set -e
@@ -122,8 +149,10 @@ jobs:
 
           if not CONTAINER_ID:
               raise SystemExit(
-                  "YC_SERVERLESS_CONTAINER_ID is empty. Set GitHub secret "
-                  "YC_SERVERLESS_CONTAINER_ID to the serverless container id."
+                  "YC_SERVERLESS_CONTAINER_ID is empty after Resolve step.\n"
+                  "Add repository secret YC_SERVERLESS_CONTAINER_ID (Yandex Serverless Container resource id).\n"
+                  "Check: repo Settings → Secrets → Actions; secret name must match exactly.\n"
+                  "Fork PRs: secrets are unavailable unless configured on the fork."
               )
           # Do not log full id in public logs (partial mask).
           print(f"Container id (masked): {CONTAINER_ID[:4]}*** len={len(CONTAINER_ID)}")
