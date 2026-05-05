@@ -160,6 +160,12 @@ jobs:
           with open(KEY_PATH, "r", encoding="utf-8") as f:
               key = json.load(f)
 
+          service_account_id = (key.get("service_account_id") or "").strip()
+          if not service_account_id:
+              raise SystemExit(
+                  "key.json has no service_account_id; regenerate SA authorized key JSON."
+              )
+
           now = int(time.time())
           jwt_payload = {
               "iss": key["service_account_id"],
@@ -188,6 +194,7 @@ jobs:
           # REST JSON matches api-ref (camelCase), see revisions:deploy body schema.
           deploy_body = {
               "containerId": CONTAINER_ID,
+              "serviceAccountId": service_account_id,
               "resources": {
                   "memory": str(1 * 1024 * 1024 * 1024),
                   "cores": "1",
