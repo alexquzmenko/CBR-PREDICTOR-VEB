@@ -23,6 +23,91 @@ class PredictRequest(BaseModel):
 
 
 FALLBACK_MEETING_RESULTS: dict[str, dict[str, Any]] = {
+    "2024-02-16": {
+        "target_class": "hold",
+        "delta_bp": 0,
+        "rate_move_label": "rate_hold",
+    },
+    "2024-03-22": {
+        "target_class": "hold",
+        "delta_bp": 0,
+        "rate_move_label": "rate_hold",
+    },
+    "2024-04-26": {
+        "target_class": "hold",
+        "delta_bp": 0,
+        "rate_move_label": "rate_hold",
+    },
+    "2024-06-07": {
+        "target_class": "hold",
+        "delta_bp": 0,
+        "rate_move_label": "rate_hold",
+    },
+    "2024-07-26": {
+        "target_class": "up",
+        "delta_bp": 200,
+        "rate_move_label": "rate_hike_200bp",
+    },
+    "2024-09-13": {
+        "target_class": "up",
+        "delta_bp": 100,
+        "rate_move_label": "rate_hike_100bp",
+    },
+    "2024-10-25": {
+        "target_class": "up",
+        "delta_bp": 200,
+        "rate_move_label": "rate_hike_200bp",
+    },
+    "2024-12-20": {
+        "target_class": "hold",
+        "delta_bp": 0,
+        "rate_move_label": "rate_hold",
+    },
+    "2025-02-14": {
+        "target_class": "hold",
+        "delta_bp": 0,
+        "rate_move_label": "rate_hold",
+    },
+    "2025-03-21": {
+        "target_class": "hold",
+        "delta_bp": 0,
+        "rate_move_label": "rate_hold",
+    },
+    "2025-04-25": {
+        "target_class": "hold",
+        "delta_bp": 0,
+        "rate_move_label": "rate_hold",
+    },
+    "2025-06-06": {
+        "target_class": "down",
+        "delta_bp": -100,
+        "rate_move_label": "rate_cut_100bp",
+    },
+    "2025-07-25": {
+        "target_class": "down",
+        "delta_bp": -200,
+        "rate_move_label": "rate_cut_200bp",
+    },
+    "2025-09-12": {
+        "target_class": "down",
+        "delta_bp": -100,
+        "rate_move_label": "rate_cut_100bp",
+    },
+    "2025-10-24": {
+        "target_class": "down",
+        "delta_bp": -50,
+        "rate_move_label": "rate_cut_50bp",
+    },
+    "2025-12-19": {
+        "target_class": "down",
+        "delta_bp": -50,
+        "rate_move_label": "rate_cut_50bp",
+    },
+    "2026-02-13": {
+        "target_class": "down",
+        "delta_bp": -50,
+        "rate_move_label": "rate_cut_50bp",
+    },
     "2026-04-24": {
         "target_class": "down",
         "delta_bp": -50,
