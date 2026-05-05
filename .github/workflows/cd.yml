@@ -149,14 +149,14 @@ jobs:
           print(f"IAM token issued (length={len(iam_token)})")
 
           deploy_body = {
-              "containerId": CONTAINER_ID,
+              "container_id": CONTAINER_ID,
               "resources": {
                   "memory": str(1 * 1024 * 1024 * 1024),
                   "cores": "1",
               },
-              "executionTimeout": "60s",
-              "imageSpec": {
-                  "imageUrl": IMAGE_URI,
+              "execution_timeout": "60s",
+              "image_spec": {
+                  "image_url": IMAGE_URI,
                   "environment": {
                       "PORT": "8080",
                       "APP_ENV": "prod",
